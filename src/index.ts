@@ -7,7 +7,13 @@ import { getLyrics } from "./services/lrclibService"
 import { initiateSpotifyLogin } from "./services/spotifyAuth"
 import { getCurrentlyPlaying, refreshAccessToken } from "./services/spotifyService"
 
-dotenv.config()
+// Load environment variables (webpack DefinePlugin will handle this in production)
+if (!app.isPackaged) {
+  // In development, load from .env file
+  dotenv.config()
+}
+
+console.log("Spotify Client ID loaded:", process.env.SPOTIFY_CLIENT_ID ? "Yes" : "No")
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -34,20 +40,25 @@ const createWindow = (): void => {
     width: 800,
     frame: false, // Remove window frame
     transparent: true, // Enable transparency
-    backgroundColor: '#00000000', // Set background to transparent
+    backgroundColor: "#00000000", // Set background to transparent
     webPreferences: {
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY
+      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      contextIsolation: true,
+      nodeIntegration: false
     }
   })
 
   // Disable the context menu
-  mainWindow.webContents.on('context-menu', (e) => {
+  mainWindow.webContents.on("context-menu", (e) => {
     e.preventDefault()
   })
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY)
 
-  mainWindow.webContents.openDevTools()
+  // Only open DevTools in development, as it breaks transparency
+  if (process.env.NODE_ENV === "development") {
+    mainWindow.webContents.openDevTools()
+  }
 }
 
 app.on("ready", createWindow)

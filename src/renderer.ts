@@ -26,9 +26,9 @@
  * ```
  */
 
+import "@fortawesome/fontawesome-free/css/all.min.css"
 import "./index.css"
 import "./styles.css"
-import "@fortawesome/fontawesome-free/css/all.min.css"
 
 console.log('👋 This message is being logged by"renderer.ts", bundled via webpack')
 
@@ -96,8 +96,8 @@ let isPlaying = false
 let localSongProgressMs: number | null = null
 let songProgressTimer: NodeJS.Timeout | null = null
 
-// Track transparency state
-let isTransparent = false
+// Track transparency state with multiple levels
+let opacityLevel = 0 // 0: opaque, 1: semi-transparent, 2: very transparent, 3: fully transparent
 
 // Lyrics cache
 const lyricsCache: LyricsCache = {}
@@ -128,7 +128,7 @@ function initializeApp() {
     if (fetchSongButton) fetchSongButton.classList.add("hidden")
     if (stickTopButton) stickTopButton.classList.add("hidden")
     if (toggleOpacityButton) toggleOpacityButton.classList.add("hidden")
-    
+
     // Automatically trigger Spotify login
     initiateSpotifyLogin()
   }
@@ -149,9 +149,9 @@ if (loginButton) {
 // Add click event listener to the fetch song button
 if (fetchSongButton) {
   fetchSongButton.addEventListener("click", () => {
-    const icon = fetchSongButton.querySelector('i')
+    const icon = fetchSongButton.querySelector("i")
     if (icon) {
-      icon.classList.add('fa-spin')
+      icon.classList.add("fa-spin")
     }
     fetchSongButton.title = "Fetching..."
     window.electron.ipcRenderer.send("request-current-song")
@@ -172,48 +172,78 @@ if (toggleOpacityButton) {
   })
 }
 
-// Function to toggle background opacity
+// Function to toggle background opacity through multiple levels
 function toggleBackgroundOpacity() {
-  isTransparent = !isTransparent
-  
-  const appContainer = document.querySelector('.app-container')
-  const lyricsContainerElement = document.getElementById('lyrics-container')
-  
-  if (isTransparent) {
-    // Apply transparent styles
-    if (appContainer) {
-      appContainer.classList.add('transparent-background')
-    }
-    if (lyricsContainerElement) {
-      lyricsContainerElement.classList.add('transparent-lyrics-container')
-    }
+  // Cycle through opacity levels: 0 -> 1 -> 2 -> 3 -> 0
+  opacityLevel = (opacityLevel + 1) % 4
+
+  const appContainer = document.querySelector(".app-container")
+  const bodyElement = document.body
+
+  // Remove all existing opacity classes from all elements
+  if (appContainer) {
+    appContainer.classList.remove("opacity-level-1", "opacity-level-2", "opacity-level-3")
+  }
+  if (bodyElement) {
+    bodyElement.classList.remove("opacity-level-1", "opacity-level-2", "opacity-level-3")
+  }
+
+  // Update button state
+  if (toggleOpacityButton) {
+    toggleOpacityButton.classList.remove("opacity-1", "opacity-2", "opacity-3")
     
-    // Update button icon and title
-    if (toggleOpacityButton) {
-      toggleOpacityButton.title = "Make Background Opaque"
-      toggleOpacityButton.classList.add('transparent')
-      const icon = toggleOpacityButton.querySelector('i')
-      if (icon) {
-        icon.className = 'fas fa-eye-slash'
-      }
-    }
-  } else {
-    // Remove transparent styles
-    if (appContainer) {
-      appContainer.classList.remove('transparent-background')
-    }
-    if (lyricsContainerElement) {
-      lyricsContainerElement.classList.remove('transparent-lyrics-container')
-    }
-    
-    // Update button icon and title
-    if (toggleOpacityButton) {
-      toggleOpacityButton.title = "Make Background Transparent"
-      toggleOpacityButton.classList.remove('transparent')
-      const icon = toggleOpacityButton.querySelector('i')
-      if (icon) {
-        icon.className = 'fas fa-eye'
-      }
+    const icon = toggleOpacityButton.querySelector('i')
+
+    switch (opacityLevel) {
+      case 0:
+        // Fully opaque
+        toggleOpacityButton.title = "Make Background Slightly Transparent"
+        if (icon) {
+          icon.className = 'fas fa-eye'
+        }
+        break
+      case 1:
+        // Semi-transparent
+        if (appContainer) {
+          appContainer.classList.add("opacity-level-1")
+        }
+        if (bodyElement) {
+          bodyElement.classList.add("opacity-level-1")
+        }
+        toggleOpacityButton.classList.add("opacity-1")
+        toggleOpacityButton.title = "Make Background More Transparent"
+        if (icon) {
+          icon.className = 'fas fa-adjust'
+        }
+        break
+      case 2:
+        // Very transparent
+        if (appContainer) {
+          appContainer.classList.add("opacity-level-2")
+        }
+        if (bodyElement) {
+          bodyElement.classList.add("opacity-level-2")
+        }
+        toggleOpacityButton.classList.add("opacity-2")
+        toggleOpacityButton.title = "Make Background Fully Transparent"
+        if (icon) {
+          icon.className = 'fas fa-low-vision'
+        }
+        break
+      case 3:
+        // Almost transparent
+        if (appContainer) {
+          appContainer.classList.add("opacity-level-3")
+        }
+        if (bodyElement) {
+          bodyElement.classList.add("opacity-level-3")
+        }
+        toggleOpacityButton.classList.add("opacity-3")
+        toggleOpacityButton.title = "Make Background Opaque"
+        if (icon) {
+          icon.className = 'fas fa-eye-slash'
+        }
+        break
     }
   }
 }
@@ -254,7 +284,7 @@ window.electron.ipcRenderer.on("spotify-auth-error", (_event: IpcRendererEvent, 
   if (loginStatus) loginStatus.textContent = "Authentication failed"
   if (stickTopButton) stickTopButton.classList.add("hidden")
   if (toggleOpacityButton) toggleOpacityButton.classList.add("hidden")
-  
+
   // Show login button so user can try again
   if (loginButton) loginButton.classList.remove("hidden")
 })
@@ -263,21 +293,21 @@ window.electron.ipcRenderer.on("spotify-auth-error", (_event: IpcRendererEvent, 
 window.electron.ipcRenderer.on("update-lyrics", (_event: IpcRendererEvent, lyrics: string | null) => {
   if (fetchSongButton) {
     // Stop spinning animation
-    const icon = fetchSongButton.querySelector('i')
+    const icon = fetchSongButton.querySelector("i")
     if (icon) {
-      icon.classList.remove('fa-spin')
+      icon.classList.remove("fa-spin")
     }
     fetchSongButton.title = "Lyrics Fetched"
 
     // Change icon to checkmark temporarily
     if (icon) {
-      icon.className = 'fas fa-check'
+      icon.className = "fas fa-check"
     }
 
     // Reset to refresh icon after 2 seconds
     setTimeout(() => {
       if (icon) {
-        icon.className = 'fas fa-sync-alt'
+        icon.className = "fas fa-sync-alt"
       }
       if (fetchSongButton) {
         fetchSongButton.title = "Fetch Current Song"
@@ -363,9 +393,9 @@ window.electron.ipcRenderer.on("update-status", (_event: IpcRendererEvent, messa
 // Listen for when we start fetching lyrics
 window.electron.ipcRenderer.on("fetching-lyrics", () => {
   if (fetchSongButton) {
-    const icon = fetchSongButton.querySelector('i')
+    const icon = fetchSongButton.querySelector("i")
     if (icon) {
-      icon.classList.add('fa-spin')
+      icon.classList.add("fa-spin")
     }
     fetchSongButton.title = "Fetching Lyrics..."
   }
