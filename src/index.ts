@@ -21,6 +21,9 @@ let spotifyTokens: { access_token: string; refresh_token: string } | null = null
 let pollInterval: NodeJS.Timeout | null = null
 let currentSongId: string | null = null
 
+// Lyrics cache
+const lyricsCache: { [key: string]: string | null } = {}
+
 if (require("electron-squirrel-startup")) {
   app.quit()
 }
@@ -105,25 +108,39 @@ async function checkCurrentlyPlaying() {
       // Update status message
       mainWindow.webContents.send("update-status", `Now playing: ${trackName} by ${artistName}`)
 
-      // Notify that we're fetching lyrics
-      mainWindow.webContents.send("fetching-lyrics")
+      // Check if we have cached lyrics for this song
+      if (lyricsCache[songId]) {
+        // Use cached lyrics
+        console.log("Using cached lyrics for song:", songId)
+        mainWindow.webContents.send("update-lyrics", lyricsCache[songId])
+      } else {
+        // Notify that we're fetching lyrics
+        mainWindow.webContents.send("fetching-lyrics")
 
-      // Fetch lyrics for the new song
-      try {
-        const lyrics = await getLyrics(trackName, artistName)
-        console.log({ lyrics })
-        mainWindow.webContents.send("update-lyrics", lyrics)
+        // Fetch lyrics for the new song
+        try {
+          const lyrics = await getLyrics(trackName, artistName)
+          console.log({ lyrics })
 
-        if (!lyrics) {
-          mainWindow.webContents.send("update-status", `Now playing: ${trackName} by ${artistName} (Lyrics not found)`)
+          // Cache the lyrics
+          lyricsCache[songId] = lyrics
+
+          mainWindow.webContents.send("update-lyrics", lyrics)
+
+          if (!lyrics) {
+            mainWindow.webContents.send(
+              "update-status",
+              `Now playing: ${trackName} by ${artistName} (Lyrics not found)`
+            )
+          }
+        } catch (lyricsError) {
+          console.error("Error fetching lyrics:", lyricsError)
+          mainWindow.webContents.send("update-lyrics", null)
+          mainWindow.webContents.send(
+            "update-status",
+            `Now playing: ${trackName} by ${artistName} (Error fetching lyrics)`
+          )
         }
-      } catch (lyricsError) {
-        console.error("Error fetching lyrics:", lyricsError)
-        mainWindow.webContents.send("update-lyrics", null)
-        mainWindow.webContents.send(
-          "update-status",
-          `Now playing: ${trackName} by ${artistName} (Error fetching lyrics)`
-        )
       }
     }
   } catch (error: unknown) {
@@ -245,4 +262,13 @@ async function handleSpotifyCallback(code: string) {
 // IPC handler for requesting the current song (manual refresh)
 ipcMain.on("request-current-song", async () => {
   await checkCurrentlyPlaying()
+})
+
+// IPC handler for toggling always on top
+ipcMain.on("toggle-always-on-top", () => {
+  if (mainWindow) {
+    const isAlwaysOnTop = mainWindow.isAlwaysOnTop()
+    mainWindow.setAlwaysOnTop(!isAlwaysOnTop)
+    mainWindow.webContents.send("always-on-top-updated", !isAlwaysOnTop)
+  }
 })

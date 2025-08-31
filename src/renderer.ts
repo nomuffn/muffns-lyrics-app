@@ -51,6 +51,11 @@ interface LyricsLine {
   text: string
 }
 
+// Define lyrics cache interface
+interface LyricsCache {
+  [key: string]: string | null // songId -> lyrics
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -73,6 +78,7 @@ const songProgress = document.getElementById("song-progress") as HTMLDivElement
 const songProgressCurrent = document.getElementById("song-progress-current") as HTMLSpanElement
 const songProgressTotal = document.getElementById("song-progress-total") as HTMLSpanElement
 const fetchSongButton = document.getElementById("fetch-song-btn") as HTMLButtonElement
+const stickTopButton = document.getElementById("stick-top-btn") as HTMLButtonElement
 
 // Track authentication state
 let isAuthenticated = false
@@ -88,6 +94,9 @@ let isPlaying = false
 let localSongProgressMs: number | null = null
 let songProgressTimer: NodeJS.Timeout | null = null
 
+// Lyrics cache
+const lyricsCache: LyricsCache = {}
+
 function initializeApp() {
   const storedTokenExpiry = sessionStorage.getItem("tokenExpiryTime")
   if (storedTokenExpiry && parseInt(storedTokenExpiry) > Date.now()) {
@@ -98,13 +107,11 @@ function initializeApp() {
     if (loginButton) loginButton.classList.add("hidden")
     if (authStatus) authStatus.classList.remove("hidden")
     if (fetchSongButton) fetchSongButton.classList.remove("hidden")
+    if (stickTopButton) stickTopButton.classList.remove("hidden")
 
     // Update auth status
     if (loginStatus) loginStatus.textContent = "Logged in"
     updateTokenExpiry()
-
-    // Show main view
-    if (mainView) mainView.classList.remove("hidden")
 
     // Request current song
     window.electron.ipcRenderer.send("request-current-song")
@@ -113,6 +120,7 @@ function initializeApp() {
     if (loginButton) loginButton.classList.remove("hidden")
     if (authStatus) authStatus.classList.add("hidden")
     if (fetchSongButton) fetchSongButton.classList.add("hidden")
+    if (stickTopButton) stickTopButton.classList.add("hidden")
   }
 }
 
@@ -126,7 +134,19 @@ if (loginButton) {
 // Add click event listener to the fetch song button
 if (fetchSongButton) {
   fetchSongButton.addEventListener("click", () => {
+    const icon = fetchSongButton.querySelector(".icon-refresh")
+    if (icon) {
+      icon.classList.add("spinning")
+    }
+    fetchSongButton.title = "Fetching..."
     window.electron.ipcRenderer.send("request-current-song")
+  })
+}
+
+// Add click event listener to the stick to top button
+if (stickTopButton) {
+  stickTopButton.addEventListener("click", () => {
+    window.electron.ipcRenderer.send("toggle-always-on-top")
   })
 }
 
@@ -140,13 +160,11 @@ window.electron.ipcRenderer.on("spotify-auth-success", () => {
   if (loginButton) loginButton.classList.add("hidden")
   if (authStatus) authStatus.classList.remove("hidden")
   if (fetchSongButton) fetchSongButton.classList.remove("hidden")
+  if (stickTopButton) stickTopButton.classList.remove("hidden")
 
   // Update auth status
   if (loginStatus) loginStatus.textContent = "Logged in"
   updateTokenExpiry()
-
-  // Show main view
-  if (mainView) mainView.classList.remove("hidden")
 
   // Update status message
   if (statusMessage) statusMessage.textContent = "Connecting to Spotify..."
@@ -165,10 +183,50 @@ window.electron.ipcRenderer.on("spotify-auth-success", () => {
 window.electron.ipcRenderer.on("spotify-auth-error", (_event: IpcRendererEvent, message?: string) => {
   if (statusMessage) statusMessage.textContent = message || "Failed to authenticate with Spotify. Please try again."
   if (loginStatus) loginStatus.textContent = "Authentication failed"
+  if (stickTopButton) stickTopButton.classList.add("hidden")
 })
 
 // Listen for lyrics update
 window.electron.ipcRenderer.on("update-lyrics", (_event: IpcRendererEvent, lyrics: string | null) => {
+  if (fetchSongButton) {
+    // Stop spinning animation
+    const icon = fetchSongButton.querySelector(".icon-refresh")
+    if (icon) {
+      icon.classList.remove("spinning")
+    }
+    fetchSongButton.title = "Lyrics Fetched"
+
+    // Change icon to checkmark temporarily
+    if (icon) {
+      icon.innerHTML = '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>'
+    }
+
+    // Reset to refresh icon after 2 seconds
+    setTimeout(() => {
+      if (icon) {
+        icon.innerHTML =
+          '<path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>'
+      }
+      if (fetchSongButton) {
+        fetchSongButton.title = "Fetch Current Song"
+      }
+    }, 2000)
+  }
+
+  console.log({ lyrics })
+  console.log({ lyricsLines })
+  console.log(lyricsLines.length)
+  console.log("update-lyrics")
+
+  // Cache the lyrics for the current song
+  if (currentSongId) {
+    lyricsCache[currentSongId] = lyrics
+  }
+
+  // Only update lyrics if it's a new song
+  // We determine this by checking if we have lyrics already
+  const isNewSong = lyricsLines.length === 0
+
   if (lyrics && lyrics !== "") {
     // Parse synced lyrics if they exist
     if (isSyncedLyrics(lyrics)) {
@@ -179,19 +237,36 @@ window.electron.ipcRenderer.on("update-lyrics", (_event: IpcRendererEvent, lyric
       // Display plain lyrics
       if (lyricsContainer) lyricsContainer.textContent = lyrics
       if (statusMessage) statusMessage.textContent = ""
+      lyricsLines = []
+      currentLyricsIndex = -1
     }
-  } else {
-    if (lyricsContainer) lyricsContainer.textContent = ""
-    if (statusMessage) statusMessage.textContent = "Lyrics not found for this song."
+  } else if (isNewSong) {
+    // If it's a new song and can't find lyrics, show "no lyrics found" text
+    if (lyricsContainer) lyricsContainer.textContent = "Lyrics not found for this song."
+    if (statusMessage) statusMessage.textContent = ""
     lyricsLines = []
     currentLyricsIndex = -1
+
+    if (songProgressTimer) {
+      clearInterval(songProgressTimer)
+      songProgressTimer = null
+    }
+  } else {
+    // song was probably paused, clear the timer to stop the lyrics from progressing
+    if (songProgressTimer) {
+      clearInterval(songProgressTimer)
+      songProgressTimer = null
+    }
   }
+  // If it's not a new song and lyrics are null/empty, we don't update anything
 })
 
 // Listen for status updates
 window.electron.ipcRenderer.on("update-status", (_event: IpcRendererEvent, message: string) => {
   // Ensure message is a string
   const msg = message || ""
+
+  console.log("update-status: ", msg)
 
   // Check if this is a"Now playing" message
   if (msg.startsWith("Now playing:")) {
@@ -206,21 +281,6 @@ window.electron.ipcRenderer.on("update-status", (_event: IpcRendererEvent, messa
 
     // Clear status message when we have a song
     if (statusMessage) statusMessage.textContent = ""
-  } else if (msg === "No song is currently playing") {
-    // Update song info
-    if (songTitle) songTitle.textContent = "No song playing"
-    if (songArtist) songArtist.textContent = ""
-    if (songAlbum) songAlbum.textContent = ""
-    if (songDuration) songDuration.textContent = ""
-    if (songProgressCurrent) songProgressCurrent.textContent = "0:00"
-    if (songProgressTotal) songProgressTotal.textContent = "0:00"
-    if (songProgress) songProgress.style.width = "0%"
-    if (statusMessage) statusMessage.textContent = msg
-
-    // Clear lyrics
-    if (lyricsContainer) lyricsContainer.textContent = ""
-    lyricsLines = []
-    currentLyricsIndex = -1
   } else if (msg.includes("Error")) {
     if (statusMessage) statusMessage.textContent = msg
   } else {
@@ -230,7 +290,27 @@ window.electron.ipcRenderer.on("update-status", (_event: IpcRendererEvent, messa
 
 // Listen for when we start fetching lyrics
 window.electron.ipcRenderer.on("fetching-lyrics", () => {
+  if (fetchSongButton) {
+    const icon = fetchSongButton.querySelector(".icon-refresh")
+    if (icon) {
+      icon.classList.add("spinning")
+    }
+    fetchSongButton.title = "Fetching Lyrics..."
+  }
   if (statusMessage) statusMessage.textContent = "Fetching lyrics..."
+})
+
+// Listen for always on top status updates
+window.electron.ipcRenderer.on("always-on-top-updated", (_event: IpcRendererEvent, isAlwaysOnTop: boolean) => {
+  if (stickTopButton) {
+    if (isAlwaysOnTop) {
+      stickTopButton.classList.add("stuck")
+      stickTopButton.title = "Sticking to Top"
+    } else {
+      stickTopButton.classList.remove("stuck")
+      stickTopButton.title = "Stick to Top"
+    }
+  }
 })
 
 // Listen for detailed song information
@@ -244,7 +324,17 @@ window.electron.ipcRenderer.on("update-song-info", (_event: IpcRendererEvent, so
       currentSongId = newSongId
       lyricsLines = []
       currentLyricsIndex = -1
-      window.electron.ipcRenderer.send("request-lyrics", { track: item.name, artist: item.artists[0].name })
+
+      // Check if we have cached lyrics for this song
+      if (lyricsCache[newSongId]) {
+        // Use cached lyrics
+        console.log("Using cached lyrics for song:", newSongId)
+        window.electron.ipcRenderer.send("update-lyrics", lyricsCache[newSongId])
+      } else {
+        // Request new lyrics
+        console.log("Fetching lyrics for new song:", newSongId)
+        window.electron.ipcRenderer.send("request-lyrics", { track: item.name, artist: item.artists[0].name })
+      }
     }
 
     // Update song details
