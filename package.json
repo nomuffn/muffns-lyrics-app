@@ -1,6 +1,6 @@
 {
-  "name": "muffns-lyrics-app",
-  "productName": "muffns-lyrics-app",
+  "name": "temp-electron-app",
+  "productName": "temp-electron-app",
   "version": "1.0.0",
   "description": "My Electron application description",
   "main": ".webpack/main",
