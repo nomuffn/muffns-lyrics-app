@@ -39,6 +39,7 @@ interface AppSettings {
   windowSize?: { width: number; height: number }
   alwaysOnTop?: boolean
   opacityLevel?: number
+  showInTaskbar?: boolean
 }
 
 let appSettings: AppSettings = {}
@@ -164,6 +165,24 @@ const createSystemTray = (): void => {
     },
     { type: 'separator' },
     {
+      label: 'Show Taskbar Icon',
+      type: 'checkbox',
+      checked: appSettings.showInTaskbar !== false,
+      click: () => {
+        if (mainWindow) {
+          const newShowInTaskbar = !(appSettings.showInTaskbar !== false)
+          mainWindow.setSkipTaskbar(!newShowInTaskbar)
+          
+          // Save the setting
+          appSettings.showInTaskbar = newShowInTaskbar
+          saveSettings()
+          
+          // Update tray menu to reflect new state
+          createSystemTray()
+        }
+      }
+    },
+    {
       label: 'Always On Top',
       type: 'checkbox',
       checked: appSettings.alwaysOnTop !== false,
@@ -229,8 +248,9 @@ const createWindow = (): void => {
     }
   })
 
-  // Ensure window stays in taskbar regardless of always-on-top setting
-  mainWindow.setSkipTaskbar(false)
+  // Set taskbar visibility based on saved setting (default to show in taskbar)
+  const shouldShowInTaskbar = appSettings.showInTaskbar !== false
+  mainWindow.setSkipTaskbar(!shouldShowInTaskbar)
   
   // Set always on top with proper level to appear above taskbar
   // Use 'screen-saver' level which is above taskbar but less aggressive than 'pop-up-menu'
