@@ -1,6 +1,6 @@
 import axios, { isAxiosError } from "axios"
 import * as dotenv from "dotenv"
-import { app, BrowserWindow, ipcMain } from "electron"
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } from "electron"
 import * as http from "http"
 import * as url from "url"
 import * as path from "path"
@@ -21,6 +21,7 @@ declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
 
 let mainWindow: BrowserWindow | null
+let tray: Tray | null = null
 
 // In a real application, you should use a more secure method to store tokens
 let spotifyTokens: { access_token: string; refresh_token: string } | null = null
@@ -75,6 +76,138 @@ if (require("electron-squirrel-startup")) {
   app.quit()
 }
 
+const createSystemTray = (): void => {
+  // Create a simple programmatic icon as fallback
+  const trayIcon = nativeImage.createFromBuffer(
+    Buffer.from([
+      // Simple 16x16 PNG header + minimal icon data
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10,
+      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x91, 0x68, 0x36, 0x00, 0x00, 0x00,
+      0x0C, 0x49, 0x44, 0x41, 0x54, 0x28, 0x15, 0x63, 0xF8, 0x0F, 0x00, 0x01,
+      0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+    ])
+  )
+
+  // Try to use a simple fallback icon, or use programmatic icon
+  let iconToUse = trayIcon
+  try {
+    // Try different potential icon locations
+    const possiblePaths = [
+      path.join(__dirname, '../assets/icon.png'),
+      path.join(__dirname, '../assets/tray.png'),
+      path.join(process.resourcesPath, 'assets/icon.png')
+    ]
+    
+    for (const iconPath of possiblePaths) {
+      if (fs.existsSync(iconPath)) {
+        iconToUse = nativeImage.createFromPath(iconPath)
+        break
+      }
+    }
+  } catch (error) {
+    console.log('Using programmatic tray icon:', error)
+  }
+
+  tray = new Tray(iconToUse)
+  
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show Window',
+      type: 'normal',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      }
+    },
+    {
+      label: 'Hide Window',
+      type: 'normal',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.hide()
+        }
+      }
+    },
+    {
+      label: 'Reset Window Position',
+      type: 'normal',
+      click: () => {
+        if (mainWindow) {
+          // Reset to center of screen
+          const primaryDisplay = screen.getPrimaryDisplay()
+          const { width, height } = primaryDisplay.workAreaSize
+          
+          const windowWidth = 800
+          const windowHeight = 600
+          const x = Math.floor((width - windowWidth) / 2)
+          const y = Math.floor((height - windowHeight) / 2)
+          
+          mainWindow.setBounds({
+            x: x,
+            y: y,
+            width: windowWidth,
+            height: windowHeight
+          })
+          mainWindow.show()
+          mainWindow.focus()
+          
+          // Update saved settings
+          appSettings.windowPosition = { x, y }
+          appSettings.windowSize = { width: windowWidth, height: windowHeight }
+          saveSettings()
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Always On Top',
+      type: 'checkbox',
+      checked: appSettings.alwaysOnTop !== false,
+      click: () => {
+        // Trigger the same toggle as the UI button
+        if (mainWindow) {
+          const isAlwaysOnTop = mainWindow.isAlwaysOnTop()
+          const newState = !isAlwaysOnTop
+          mainWindow.setAlwaysOnTop(newState, newState ? 'screen-saver' : 'normal')
+          appSettings.alwaysOnTop = newState
+          saveSettings()
+          mainWindow.webContents.send("always-on-top-updated", newState)
+          
+          // Update tray menu
+          createSystemTray()
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      type: 'normal',
+      click: () => {
+        app.quit()
+      }
+    }
+  ])
+
+  tray.setContextMenu(contextMenu)
+  tray.setToolTip('Lyrics App - Currently Playing Songs')
+  
+  // Handle tray click to show/hide window
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide()
+      } else {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    }
+  })
+}
+
 const createWindow = (): void => {
   // Load settings
   appSettings = loadSettings()
@@ -87,7 +220,7 @@ const createWindow = (): void => {
     frame: false, // Remove window frame
     transparent: true, // Enable transparency
     backgroundColor: "#00000000", // Set background to transparent
-    alwaysOnTop: appSettings.alwaysOnTop !== false, // Use saved setting or default to true
+    alwaysOnTop: false, // Set to false initially, we'll configure it properly below
     skipTaskbar: false, // Show in taskbar
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
@@ -96,12 +229,24 @@ const createWindow = (): void => {
     }
   })
 
+  // Ensure window stays in taskbar regardless of always-on-top setting
+  mainWindow.setSkipTaskbar(false)
+  
+  // Set always on top with proper level to appear above taskbar
+  // Use 'screen-saver' level which is above taskbar but less aggressive than 'pop-up-menu'
+  if (appSettings.alwaysOnTop !== false) {
+    mainWindow.setAlwaysOnTop(true, 'screen-saver')
+  }
+
   // Disable the context menu
   mainWindow.webContents.on("context-menu", (e) => {
     e.preventDefault()
   })
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY)
+
+  // Create system tray after window is created
+  createSystemTray()
 
   // Only open DevTools in development, as it breaks transparency
   if (process.env.NODE_ENV === "development") {
@@ -136,8 +281,18 @@ const createWindow = (): void => {
 app.on("ready", createWindow)
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  // Don't quit the app when all windows are closed if tray is active
+  // This allows the app to continue running in the system tray
+  if (process.platform !== "darwin" && !tray) {
     app.quit()
+  }
+})
+
+app.on("before-quit", () => {
+  // Clean up tray when app is quitting
+  if (tray) {
+    tray.destroy()
+    tray = null
   }
 })
 
@@ -360,7 +515,10 @@ ipcMain.on("toggle-always-on-top", () => {
   if (mainWindow) {
     const isAlwaysOnTop = mainWindow.isAlwaysOnTop()
     const newState = !isAlwaysOnTop
-    mainWindow.setAlwaysOnTop(newState)
+    
+    // Use 'screen-saver' level to ensure window appears above taskbar on Windows
+    // This level places the window above the taskbar, unlike 'floating' which goes below it
+    mainWindow.setAlwaysOnTop(newState, newState ? 'screen-saver' : 'normal')
     
     // Save the state
     appSettings.alwaysOnTop = newState
