@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Lyrics App</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <div class="header">
+        <button id="login-btn" class="spotify-login">Login with Spotify</button>
+        <div id="auth-status" class="auth-status hidden">
+          <div class="status-item">
+            <span class="status-label">Status:</span>
+            <span id="login-status" class="status-value">Logged in</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Token expires:</span>
+            <span id="token-expiry" class="status-value">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div id="main-view" class="main-view hidden">
+        <div class="song-info">
+          <div class="song-header">
+            <div class="song-details">
+              <p id="song-title" class="song-title">-</p>
+              <p id="song-artist" class="song-artist">-</p>
+              <p id="song-album" class="song-album">-</p>
+            </div>
+            <div class="song-meta">
+              <p id="song-duration" class="song-duration">-</p>
+            </div>
+          </div>
+          <div class="song-progress-container">
+            <div class="song-progress-bar">
+              <div id="song-progress" class="song-progress" style="width: 0%"></div>
+            </div>
+            <div class="song-progress-text">
+              <span id="song-progress-current">0:00</span>
+              <span id="song-progress-total">0:00</span>
+            </div>
+          </div>
+        </div>
+        
+        <button id="fetch-song-btn" class="fetch-song-btn hidden">Fetch Current Song</button>
+        
+        <div id="status-message" class="status-message">Connecting to Spotify...</div>
+        <div id="lyrics-container" class="lyrics-container"></div>
+      </div>
+    </div>
+  </body>
+</html>

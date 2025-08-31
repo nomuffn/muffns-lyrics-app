@@ -1,0 +1,357 @@
+/* Dark theme for the lyrics app */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #121212;
+  color: #ffffff;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100vh;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+/* Header with login button and auth status */
+.header {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+/* Spotify login button */
+.spotify-login {
+  background-color: #1db954;
+  color: white;
+  border: none;
+  border-radius: 500px;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 200px;
+}
+
+.spotify-login:hover {
+  background-color: #1ed760;
+  transform: scale(1.05);
+}
+
+.spotify-login:active {
+  transform: scale(0.95);
+}
+
+/* Auth status */
+.auth-status {
+  display: flex;
+  flex-direction: column;
+  background-color: #181818;
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid #282828;
+}
+
+.auth-status.hidden {
+  display: none;
+}
+
+.status-item {
+  display: flex;
+  margin-bottom: 0.5rem;
+}
+
+.status-item:last-child {
+  margin-bottom: 0;
+}
+
+.status-label {
+  font-weight: bold;
+  color: #b3b3b3;
+  margin-right: 0.5rem;
+  min-width: 120px;
+}
+
+.status-value {
+  color: #ffffff;
+}
+
+/* Main view */
+.main-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 800px;
+  height: 100%;
+}
+
+.main-view.hidden {
+  display: none;
+}
+
+/* Song info */
+.song-info {
+  width: 100%;
+  background-color: #181818;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid #282828;
+  box-sizing: border-box;
+}
+
+.song-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.song-details {
+  flex: 1;
+}
+
+.song-title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  margin: 0 0 0.5rem 0;
+  color: #ffffff;
+}
+
+.song-artist {
+  font-size: 1.4rem;
+  margin: 0 0 0.3rem 0;
+  color: #b3b3b3;
+}
+
+.song-album {
+  font-size: 1.2rem;
+  margin: 0;
+  color: #aaaaaa;
+}
+
+.song-meta {
+  text-align: right;
+}
+
+.song-duration {
+  font-size: 1rem;
+  color: #b3b3b3;
+  margin: 0;
+}
+
+/* Song progress */
+.song-progress-container {
+  width: 100%;
+}
+
+.song-progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: #535353;
+  border-radius: 3px;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.song-progress {
+  height: 100%;
+  background-color: #1db954;
+  border-radius: 3px;
+  width: 0%;
+}
+
+.song-progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #b3b3b3;
+}
+
+/* Loading indicator */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #b3b3b3;
+}
+
+.loading-indicator.hidden {
+  display: none;
+}
+
+.spinner {
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 4px solid #1db954;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Fetch song button */
+.fetch-song-btn {
+  background-color: #1db954;
+  color: white;
+  border: none;
+  border-radius: 500px;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 1rem;
+  min-width: 200px;
+}
+
+.fetch-song-btn:hover {
+  background-color: #1ed760;
+  transform: scale(1.05);
+}
+
+.fetch-song-btn:active {
+  transform: scale(0.95);
+}
+
+.fetch-song-btn.hidden {
+  display: none;
+}
+
+/* Status message */
+.status-message {
+  font-size: 1.2rem;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #b3b3b3;
+  min-height: 1.5em;
+}
+
+/* Lyrics container */
+.lyrics-container {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  text-align: center;
+  font-size: 1.4rem;
+  line-height: 2;
+  white-space: pre-wrap;
+  padding: 1rem;
+  box-sizing: border-box;
+  background-color: #181818;
+  border-radius: 8px;
+  border: 1px solid #282828;
+}
+
+/* Synced lyrics styles */
+.lyrics-line {
+  padding: 0.5rem 0;
+  transition: all 0.3s ease;
+  opacity: 0.5;
+}
+
+.lyrics-line.past {
+  opacity: 0.7;
+  color: #b3b3b3;
+}
+
+.lyrics-line.current {
+  opacity: 1;
+  color: #ffffff;
+  font-size: 1.6rem;
+  font-weight: bold;
+  transform: scale(1.05);
+}
+
+.lyrics-line.future {
+  opacity: 0.5;
+  color: #777777;
+}
+
+/* Scrollbar styling */
+.lyrics-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.lyrics-container::-webkit-scrollbar-track {
+  background: #282828;
+}
+
+.lyrics-container::-webkit-scrollbar-thumb {
+  background: #535353;
+  border-radius: 4px;
+}
+
+.lyrics-container::-webkit-scrollbar-thumb:hover {
+  background: #b3b3b3;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 1rem;
+  }
+  
+  .header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .spotify-login {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+    min-width: auto;
+  }
+  
+  .auth-status {
+    width: 100%;
+  }
+  
+  .song-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .song-meta {
+    text-align: left;
+  }
+  
+  .song-title {
+    font-size: 1.5rem;
+  }
+  
+  .song-artist {
+    font-size: 1.2rem;
+  }
+  
+  .song-album {
+    font-size: 1.1rem;
+  }
+  
+  .lyrics-container {
+    font-size: 1.2rem;
+    line-height: 1.8;
+  }
+  
+  .lyrics-line.current {
+    font-size: 1.4rem;
+  }
+}
