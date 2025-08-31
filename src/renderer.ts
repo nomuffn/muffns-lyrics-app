@@ -85,6 +85,36 @@ let currentLyricsIndex = -1
 let songStartTime: number | null = null
 let songProgressMs: number | null = null
 let isPlaying = false
+let localSongProgressMs: number | null = null
+let songProgressTimer: NodeJS.Timeout | null = null
+
+function initializeApp() {
+  const storedTokenExpiry = sessionStorage.getItem("tokenExpiryTime")
+  if (storedTokenExpiry && parseInt(storedTokenExpiry) > Date.now()) {
+    isAuthenticated = true
+    tokenExpiryTime = parseInt(storedTokenExpiry)
+
+    // Hide login button and show auth status
+    if (loginButton) loginButton.classList.add("hidden")
+    if (authStatus) authStatus.classList.remove("hidden")
+    if (fetchSongButton) fetchSongButton.classList.remove("hidden")
+
+    // Update auth status
+    if (loginStatus) loginStatus.textContent = "Logged in"
+    updateTokenExpiry()
+
+    // Show main view
+    if (mainView) mainView.classList.remove("hidden")
+
+    // Request current song
+    window.electron.ipcRenderer.send("request-current-song")
+  } else {
+    // Not authenticated
+    if (loginButton) loginButton.classList.remove("hidden")
+    if (authStatus) authStatus.classList.add("hidden")
+    if (fetchSongButton) fetchSongButton.classList.add("hidden")
+  }
+}
 
 // Add click event listener to the login button
 if (loginButton) {
@@ -103,6 +133,8 @@ if (fetchSongButton) {
 // Listen for Spotify authentication success
 window.electron.ipcRenderer.on("spotify-auth-success", () => {
   isAuthenticated = true
+  tokenExpiryTime = Date.now() + 60 * 60 * 1000 // 1 hour from now
+  sessionStorage.setItem("tokenExpiryTime", tokenExpiryTime.toString())
 
   // Hide login button and show auth status
   if (loginButton) loginButton.classList.add("hidden")
@@ -111,7 +143,6 @@ window.electron.ipcRenderer.on("spotify-auth-success", () => {
 
   // Update auth status
   if (loginStatus) loginStatus.textContent = "Logged in"
-  tokenExpiryTime = Date.now() + 60 * 60 * 1000 // 1 hour from now
   updateTokenExpiry()
 
   // Show main view
@@ -213,6 +244,7 @@ window.electron.ipcRenderer.on("update-song-info", (_event: IpcRendererEvent, so
       currentSongId = newSongId
       lyricsLines = []
       currentLyricsIndex = -1
+      window.electron.ipcRenderer.send("request-lyrics", { track: item.name, artist: item.artists[0].name })
     }
 
     // Update song details
@@ -235,13 +267,31 @@ window.electron.ipcRenderer.on("update-song-info", (_event: IpcRendererEvent, so
     songProgressMs = songInfo.progress_ms || 0
     isPlaying = songInfo.is_playing || false
 
+    // Clear any existing timer
+    if (songProgressTimer) {
+      clearInterval(songProgressTimer)
+      songProgressTimer = null
+    }
+
     // Set song start time for synced lyrics
     if (isPlaying) {
       songStartTime = Date.now() - songProgressMs
+      localSongProgressMs = songProgressMs
+
+      // Start a local timer to update the progress
+      songProgressTimer = setInterval(() => {
+        if (isPlaying && songStartTime) {
+          localSongProgressMs = Date.now() - songStartTime
+          updateProgressDisplay(localSongProgressMs)
+          updateSyncedLyrics(localSongProgressMs / 1000)
+        }
+      }, 100)
+    } else {
+      localSongProgressMs = songProgressMs
     }
 
     // Update progress display
-    updateProgressDisplay()
+    updateProgressDisplay(localSongProgressMs)
 
     // Clear status message
     if (statusMessage) statusMessage.textContent = ""
@@ -249,11 +299,10 @@ window.electron.ipcRenderer.on("update-song-info", (_event: IpcRendererEvent, so
 })
 
 // Function to update progress display
-function updateProgressDisplay() {
-  if (songProgressMs === null) return
+function updateProgressDisplay(progress: number) {
+  if (progress === null) return
 
-  const progressMs = songProgressMs
-  const progressSec = Math.floor(progressMs / 1000)
+  const progressSec = Math.floor(progress / 1000)
   const progressMin = Math.floor(progressSec / 60)
   const progressRemSec = progressSec % 60
   if (songProgressCurrent)
@@ -267,31 +316,26 @@ function updateProgressDisplay() {
     const durationMs = (parseInt(durationMinStr) * 60 + parseInt(durationSecStr)) * 1000
 
     if (durationMs > 0) {
-      const progressPercent = (progressMs / durationMs) * 100
+      const progressPercent = (progress / durationMs) * 100
       if (songProgress) songProgress.style.width = `${Math.min(progressPercent, 100)}%`
     }
-  }
-
-  // Update synced lyrics if we have them
-  if (lyricsLines.length > 0 && isPlaying) {
-    updateSyncedLyrics(progressMs / 1000)
   }
 }
 
 // Function to check if lyrics are synced
 function isSyncedLyrics(lyrics: string): boolean {
   // Check if lyrics contain timestamp format [mm:ss.xx]
-  return /  [  d+:  d+  .  d+  ]/.test(lyrics)
+  return /\d{2}:\d{2}\.\d{2}\]/.test(lyrics)
 }
 
 // Function to parse synced lyrics
 function parseSyncedLyrics(lyrics: string): LyricsLine[] {
   const lines: LyricsLine[] = []
-  const lyricLines = lyrics.split("  n")
+  const lyricLines = lyrics.split("\n")
 
   for (const line of lyricLines) {
     // Match timestamp format [mm:ss.xx] or [mm:ss]
-    const timestampMatch = line.match(/\\[(\\d+):(\\d+)(?:\\.(\\d+))?\\](.*)/)
+    const timestampMatch = line.match(/\[(\d{2}):(\d{2})\.(\d{2})\](.*)/)
     if (timestampMatch) {
       const [, minutes, seconds, centiseconds, text] = timestampMatch
       const time = parseInt(minutes) * 60 + parseInt(seconds) + parseInt(centiseconds || "0") / 100
@@ -306,10 +350,14 @@ function parseSyncedLyrics(lyrics: string): LyricsLine[] {
 function updateSyncedLyrics(currentTime: number) {
   if (lyricsLines.length === 0) return
 
+  // Add a small offset for better timing
+  const timeOffset = 0.5 // 500ms
+  const adjustedTime = currentTime + timeOffset
+
   // Find the current lyrics line
   let newIndex = -1
   for (let i = 0; i < lyricsLines.length; i++) {
-    if (lyricsLines[i].time <= currentTime) {
+    if (lyricsLines[i].time <= adjustedTime) {
       newIndex = i
     } else {
       break
@@ -345,6 +393,12 @@ function updateLyricsDisplay() {
   }
 
   lyricsContainer.innerHTML = html
+
+  // Scroll to the current line
+  const currentLineElement = lyricsContainer.querySelector(".lyrics-line.current")
+  if (currentLineElement) {
+    currentLineElement.scrollIntoView({ behavior: "smooth", block: "center" })
+  }
 }
 
 // Function to update token expiry display
@@ -369,11 +423,4 @@ setInterval(() => {
   }
 }, 60000)
 
-// Update progress every 100ms for synced lyrics
-setInterval(() => {
-  if (isPlaying && songStartTime !== null && lyricsLines.length > 0) {
-    const currentTime = (Date.now() - songStartTime) / 1000
-    updateSyncedLyrics(currentTime)
-    updateProgressDisplay()
-  }
-}, 100)
+initializeApp()

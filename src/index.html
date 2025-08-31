@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
@@ -8,7 +8,6 @@
   <body>
     <div class="app-container">
       <div class="header">
-        <button id="login-btn" class="spotify-login">Login with Spotify</button>
         <div id="auth-status" class="auth-status hidden">
           <div class="status-item">
             <span class="status-label">Status:</span>
@@ -20,7 +19,7 @@
           </div>
         </div>
       </div>
-      
+
       <div id="main-view" class="main-view hidden">
         <div class="song-info">
           <div class="song-header">
@@ -43,11 +42,14 @@
             </div>
           </div>
         </div>
-        
-        <button id="fetch-song-btn" class="fetch-song-btn hidden">Fetch Current Song</button>
-        
+
         <div id="status-message" class="status-message">Connecting to Spotify...</div>
         <div id="lyrics-container" class="lyrics-container"></div>
+
+        <div class="actions">
+          <button id="login-btn" class="spotify-login">Login with Spotify</button>
+          <button id="fetch-song-btn" class="fetch-song-btn hidden">Fetch Current Song</button>
+        </div>
       </div>
     </div>
   </body>
