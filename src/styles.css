@@ -7,6 +7,8 @@ body {
   color: #ffffff;
   height: 100vh;
   overflow: hidden;
+  -webkit-user-select: none; /* Disable text selection */
+  -webkit-app-region: no-drag; /* Prevent entire window from being draggable */
 }
 
 .app-container {
@@ -17,6 +19,19 @@ body {
   height: 100vh;
   width: 100vw;
   box-sizing: border-box;
+  -webkit-app-region: no-drag; /* Prevent container from being draggable */
+  transition: background-color 0.3s ease;
+}
+
+/* Draggable region at the top */
+.drag-region {
+  width: 100%;
+  height: 30px;
+  -webkit-app-region: drag; /* Make this area draggable */
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1000;
 }
 
 /* Header with login button and auth status */
@@ -28,6 +43,8 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  margin-top: 30px; /* Add margin to account for draggable area */
+  -webkit-app-region: no-drag; /* Prevent header from being draggable */
 }
 
 /* Spotify login button */
@@ -42,6 +59,7 @@ body {
   cursor: pointer;
   transition: all 0.3s ease;
   min-width: 200px;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
 }
 
 .spotify-login:hover {
@@ -61,6 +79,7 @@ body {
   border-radius: 8px;
   padding: 1rem;
   border: 1px solid #282828;
+  -webkit-app-region: no-drag; /* Prevent status from being draggable */
 }
 
 .auth-status.hidden {
@@ -95,6 +114,8 @@ body {
   align-items: center;
   width: 100%;
   height: 100%;
+  margin-top: 30px; /* Add margin to account for draggable area */
+  -webkit-app-region: no-drag; /* Prevent main view from being draggable */
 }
 
 .main-view.hidden {
@@ -111,11 +132,14 @@ body {
   margin-bottom: 1rem;
   border: 1px solid #282828;
   box-sizing: border-box;
+  -webkit-app-region: no-drag; /* Prevent song info from being draggable */
 }
+
 .actions {
   display: flex;
   position: absolute;
   bottom: 0;
+  -webkit-app-region: no-drag; /* Prevent actions from being draggable */
 }
 
 .song-header {
@@ -161,6 +185,7 @@ body {
 /* Song progress */
 .song-progress-container {
   width: 100%;
+  -webkit-app-region: no-drag; /* Prevent progress container from being draggable */
 }
 
 .song-progress-bar {
@@ -230,6 +255,7 @@ body {
   transition: all 0.3s ease;
   margin-bottom: 1rem;
   min-width: 200px;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
 }
 
 .fetch-song-btn:hover {
@@ -255,6 +281,7 @@ body {
   margin-bottom: 1rem;
   min-width: 200px;
   margin-left: 1rem;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
 }
 
 .clear-cache-btn:hover {
@@ -280,6 +307,7 @@ body {
   margin-bottom: 1rem;
   min-width: 200px;
   margin-left: 1rem;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
 }
 
 .pin-btn:hover {
@@ -309,6 +337,7 @@ body {
   margin-bottom: 1rem;
   min-width: 200px;
   margin-left: 1rem;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
 }
 
 .stick-top-btn:hover {
@@ -341,6 +370,7 @@ body {
   align-items: center;
   justify-content: center;
   margin-left: 1rem;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
 }
 
 .stick-top-btn:hover {
@@ -354,6 +384,39 @@ body {
 
 .stick-top-btn.stuck {
   background-color: #50c878;
+}
+
+/* Toggle opacity button */
+.toggle-opacity-btn {
+  background-color: #9b59b6;
+  color: white;
+  border: none;
+  border-radius: 500px;
+  padding: 0.8rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 1rem;
+  min-width: 50px;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 1rem;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
+}
+
+.toggle-opacity-btn:hover {
+  background-color: #8e44ad;
+  transform: scale(1.05);
+}
+
+.toggle-opacity-btn:active {
+  transform: scale(0.95);
+}
+
+.toggle-opacity-btn.transparent {
+  background-color: #3498db;
 }
 
 /* SVG Icons */
@@ -382,6 +445,20 @@ body {
   display: none !important;
 }
 
+/* Font Awesome icon spinning animation */
+.fa-spin {
+  animation: fa-spin 1s 0s infinite linear;
+}
+
+@keyframes fa-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 /* Fetch song button */
 .fetch-song-btn {
   background-color: #1db954;
@@ -398,6 +475,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-app-region: no-drag; /* Prevent button from being draggable */
 }
 
 .fetch-song-btn:hover {
@@ -417,6 +495,7 @@ body {
   margin-bottom: 2rem;
   color: #b3b3b3;
   min-height: 1.5em;
+  -webkit-app-region: no-drag; /* Prevent status message from being draggable */
 }
 
 /* Lyrics container */
@@ -436,6 +515,8 @@ body {
   border-radius: 8px;
   border: 1px solid #282828;
   scrollbar-width: none; /* For Firefox */
+  -webkit-app-region: no-drag; /* Prevent lyrics container from being draggable */
+  transition: background-color 0.3s ease;
 }
 
 .lyrics-container::-webkit-scrollbar {
@@ -465,4 +546,14 @@ body {
 .lyrics-line.future {
   opacity: 0.5;
   color: #777777;
+}
+
+/* Transparent background styles */
+.transparent-background {
+  background-color: rgba(18, 18, 18, 0.7) !important;
+}
+
+.transparent-lyrics-container {
+  background-color: rgba(24, 24, 24, 0.7) !important;
+  border: 1px solid rgba(40, 40, 40, 0.7) !important;
 }

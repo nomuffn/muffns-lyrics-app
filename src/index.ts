@@ -32,9 +32,17 @@ const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     height: 600,
     width: 800,
+    frame: false, // Remove window frame
+    transparent: true, // Enable transparency
+    backgroundColor: '#00000000', // Set background to transparent
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY
     }
+  })
+
+  // Disable the context menu
+  mainWindow.webContents.on('context-menu', (e) => {
+    e.preventDefault()
   })
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY)

@@ -28,6 +28,7 @@
 
 import "./index.css"
 import "./styles.css"
+import "@fortawesome/fontawesome-free/css/all.min.css"
 
 console.log('👋 This message is being logged by"renderer.ts", bundled via webpack')
 
@@ -79,6 +80,7 @@ const songProgressCurrent = document.getElementById("song-progress-current") as 
 const songProgressTotal = document.getElementById("song-progress-total") as HTMLSpanElement
 const fetchSongButton = document.getElementById("fetch-song-btn") as HTMLButtonElement
 const stickTopButton = document.getElementById("stick-top-btn") as HTMLButtonElement
+const toggleOpacityButton = document.getElementById("toggle-opacity-btn") as HTMLButtonElement
 
 // Track authentication state
 let isAuthenticated = false
@@ -94,6 +96,9 @@ let isPlaying = false
 let localSongProgressMs: number | null = null
 let songProgressTimer: NodeJS.Timeout | null = null
 
+// Track transparency state
+let isTransparent = false
+
 // Lyrics cache
 const lyricsCache: LyricsCache = {}
 
@@ -108,6 +113,7 @@ function initializeApp() {
     if (authStatus) authStatus.classList.remove("hidden")
     if (fetchSongButton) fetchSongButton.classList.remove("hidden")
     if (stickTopButton) stickTopButton.classList.remove("hidden")
+    if (toggleOpacityButton) toggleOpacityButton.classList.remove("hidden")
 
     // Update auth status
     if (loginStatus) loginStatus.textContent = "Logged in"
@@ -116,12 +122,21 @@ function initializeApp() {
     // Request current song
     window.electron.ipcRenderer.send("request-current-song")
   } else {
-    // Not authenticated
+    // Not authenticated - automatically initiate Spotify login
     if (loginButton) loginButton.classList.remove("hidden")
     if (authStatus) authStatus.classList.add("hidden")
     if (fetchSongButton) fetchSongButton.classList.add("hidden")
     if (stickTopButton) stickTopButton.classList.add("hidden")
+    if (toggleOpacityButton) toggleOpacityButton.classList.add("hidden")
+    
+    // Automatically trigger Spotify login
+    initiateSpotifyLogin()
   }
+}
+
+// Function to automatically initiate Spotify login
+function initiateSpotifyLogin() {
+  window.electron.ipcRenderer.send("login-spotify")
 }
 
 // Add click event listener to the login button
@@ -134,9 +149,9 @@ if (loginButton) {
 // Add click event listener to the fetch song button
 if (fetchSongButton) {
   fetchSongButton.addEventListener("click", () => {
-    const icon = fetchSongButton.querySelector(".icon-refresh")
+    const icon = fetchSongButton.querySelector('i')
     if (icon) {
-      icon.classList.add("spinning")
+      icon.classList.add('fa-spin')
     }
     fetchSongButton.title = "Fetching..."
     window.electron.ipcRenderer.send("request-current-song")
@@ -150,6 +165,59 @@ if (stickTopButton) {
   })
 }
 
+// Add click event listener to the toggle opacity button
+if (toggleOpacityButton) {
+  toggleOpacityButton.addEventListener("click", () => {
+    toggleBackgroundOpacity()
+  })
+}
+
+// Function to toggle background opacity
+function toggleBackgroundOpacity() {
+  isTransparent = !isTransparent
+  
+  const appContainer = document.querySelector('.app-container')
+  const lyricsContainerElement = document.getElementById('lyrics-container')
+  
+  if (isTransparent) {
+    // Apply transparent styles
+    if (appContainer) {
+      appContainer.classList.add('transparent-background')
+    }
+    if (lyricsContainerElement) {
+      lyricsContainerElement.classList.add('transparent-lyrics-container')
+    }
+    
+    // Update button icon and title
+    if (toggleOpacityButton) {
+      toggleOpacityButton.title = "Make Background Opaque"
+      toggleOpacityButton.classList.add('transparent')
+      const icon = toggleOpacityButton.querySelector('i')
+      if (icon) {
+        icon.className = 'fas fa-eye-slash'
+      }
+    }
+  } else {
+    // Remove transparent styles
+    if (appContainer) {
+      appContainer.classList.remove('transparent-background')
+    }
+    if (lyricsContainerElement) {
+      lyricsContainerElement.classList.remove('transparent-lyrics-container')
+    }
+    
+    // Update button icon and title
+    if (toggleOpacityButton) {
+      toggleOpacityButton.title = "Make Background Transparent"
+      toggleOpacityButton.classList.remove('transparent')
+      const icon = toggleOpacityButton.querySelector('i')
+      if (icon) {
+        icon.className = 'fas fa-eye'
+      }
+    }
+  }
+}
+
 // Listen for Spotify authentication success
 window.electron.ipcRenderer.on("spotify-auth-success", () => {
   isAuthenticated = true
@@ -161,6 +229,7 @@ window.electron.ipcRenderer.on("spotify-auth-success", () => {
   if (authStatus) authStatus.classList.remove("hidden")
   if (fetchSongButton) fetchSongButton.classList.remove("hidden")
   if (stickTopButton) stickTopButton.classList.remove("hidden")
+  if (toggleOpacityButton) toggleOpacityButton.classList.remove("hidden")
 
   // Update auth status
   if (loginStatus) loginStatus.textContent = "Logged in"
@@ -184,28 +253,31 @@ window.electron.ipcRenderer.on("spotify-auth-error", (_event: IpcRendererEvent, 
   if (statusMessage) statusMessage.textContent = message || "Failed to authenticate with Spotify. Please try again."
   if (loginStatus) loginStatus.textContent = "Authentication failed"
   if (stickTopButton) stickTopButton.classList.add("hidden")
+  if (toggleOpacityButton) toggleOpacityButton.classList.add("hidden")
+  
+  // Show login button so user can try again
+  if (loginButton) loginButton.classList.remove("hidden")
 })
 
 // Listen for lyrics update
 window.electron.ipcRenderer.on("update-lyrics", (_event: IpcRendererEvent, lyrics: string | null) => {
   if (fetchSongButton) {
     // Stop spinning animation
-    const icon = fetchSongButton.querySelector(".icon-refresh")
+    const icon = fetchSongButton.querySelector('i')
     if (icon) {
-      icon.classList.remove("spinning")
+      icon.classList.remove('fa-spin')
     }
     fetchSongButton.title = "Lyrics Fetched"
 
     // Change icon to checkmark temporarily
     if (icon) {
-      icon.innerHTML = '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>'
+      icon.className = 'fas fa-check'
     }
 
     // Reset to refresh icon after 2 seconds
     setTimeout(() => {
       if (icon) {
-        icon.innerHTML =
-          '<path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>'
+        icon.className = 'fas fa-sync-alt'
       }
       if (fetchSongButton) {
         fetchSongButton.title = "Fetch Current Song"
@@ -291,9 +363,9 @@ window.electron.ipcRenderer.on("update-status", (_event: IpcRendererEvent, messa
 // Listen for when we start fetching lyrics
 window.electron.ipcRenderer.on("fetching-lyrics", () => {
   if (fetchSongButton) {
-    const icon = fetchSongButton.querySelector(".icon-refresh")
+    const icon = fetchSongButton.querySelector('i')
     if (icon) {
-      icon.classList.add("spinning")
+      icon.classList.add('fa-spin')
     }
     fetchSongButton.title = "Fetching Lyrics..."
   }
