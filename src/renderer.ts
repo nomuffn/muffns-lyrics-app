@@ -98,9 +98,93 @@ let songProgressTimer: NodeJS.Timeout | null = null
 
 // Track transparency state with multiple levels
 let opacityLevel = 0 // 0: opaque, 1: semi-transparent, 2: very transparent, 3: fully transparent
+let isAlwaysOnTopEnabled = true // Track always on top state
 
 // Lyrics cache
 const lyricsCache: LyricsCache = {}
+
+// Function to apply settings from saved state
+function applySettings(settings: any) {
+  // Apply opacity level
+  if (typeof settings.opacityLevel === 'number') {
+    opacityLevel = settings.opacityLevel
+    applyOpacityLevel()
+  }
+
+  // Update always on top button state
+  if (typeof settings.alwaysOnTop === 'boolean') {
+    isAlwaysOnTopEnabled = settings.alwaysOnTop
+    updateAlwaysOnTopButton()
+  }
+}
+
+// Function to apply current opacity level
+function applyOpacityLevel() {
+  const appContainer = document.querySelector('.app-container')
+  const bodyElement = document.body
+
+  // Remove all existing opacity classes
+  if (appContainer) {
+    appContainer.classList.remove('opacity-level-1', 'opacity-level-2', 'opacity-level-3')
+  }
+  if (bodyElement) {
+    bodyElement.classList.remove('opacity-level-1', 'opacity-level-2', 'opacity-level-3')
+  }
+
+  // Apply current opacity level
+  if (opacityLevel > 0) {
+    const className = `opacity-level-${opacityLevel}`
+    if (appContainer) appContainer.classList.add(className)
+    if (bodyElement) bodyElement.classList.add(className)
+  }
+
+  // Update button appearance
+  updateOpacityButton()
+}
+
+// Function to update opacity button appearance
+function updateOpacityButton() {
+  if (toggleOpacityButton) {
+    toggleOpacityButton.classList.remove('opacity-1', 'opacity-2', 'opacity-3')
+    
+    const icon = toggleOpacityButton.querySelector('i')
+    
+    switch (opacityLevel) {
+      case 0:
+        toggleOpacityButton.title = "Make Background Slightly Transparent"
+        if (icon) icon.className = 'fas fa-eye'
+        break
+      case 1:
+        toggleOpacityButton.classList.add('opacity-1')
+        toggleOpacityButton.title = "Make Background More Transparent"
+        if (icon) icon.className = 'fas fa-adjust'
+        break
+      case 2:
+        toggleOpacityButton.classList.add('opacity-2')
+        toggleOpacityButton.title = "Make Background Fully Transparent"
+        if (icon) icon.className = 'fas fa-low-vision'
+        break
+      case 3:
+        toggleOpacityButton.classList.add('opacity-3')
+        toggleOpacityButton.title = "Make Background Opaque"
+        if (icon) icon.className = 'fas fa-eye-slash'
+        break
+    }
+  }
+}
+
+// Function to update always on top button appearance
+function updateAlwaysOnTopButton() {
+  if (stickTopButton) {
+    if (isAlwaysOnTopEnabled) {
+      stickTopButton.classList.add("stuck")
+      stickTopButton.title = "Unpin from Top"
+    } else {
+      stickTopButton.classList.remove("stuck")
+      stickTopButton.title = "Stick to Top"
+    }
+  }
+}
 
 function initializeApp() {
   const storedTokenExpiry = sessionStorage.getItem("tokenExpiryTime")
@@ -177,75 +261,11 @@ function toggleBackgroundOpacity() {
   // Cycle through opacity levels: 0 -> 1 -> 2 -> 3 -> 0
   opacityLevel = (opacityLevel + 1) % 4
 
-  const appContainer = document.querySelector(".app-container")
-  const bodyElement = document.body
+  // Apply the opacity level
+  applyOpacityLevel()
 
-  // Remove all existing opacity classes from all elements
-  if (appContainer) {
-    appContainer.classList.remove("opacity-level-1", "opacity-level-2", "opacity-level-3")
-  }
-  if (bodyElement) {
-    bodyElement.classList.remove("opacity-level-1", "opacity-level-2", "opacity-level-3")
-  }
-
-  // Update button state
-  if (toggleOpacityButton) {
-    toggleOpacityButton.classList.remove("opacity-1", "opacity-2", "opacity-3")
-    
-    const icon = toggleOpacityButton.querySelector('i')
-
-    switch (opacityLevel) {
-      case 0:
-        // Fully opaque
-        toggleOpacityButton.title = "Make Background Slightly Transparent"
-        if (icon) {
-          icon.className = 'fas fa-eye'
-        }
-        break
-      case 1:
-        // Semi-transparent
-        if (appContainer) {
-          appContainer.classList.add("opacity-level-1")
-        }
-        if (bodyElement) {
-          bodyElement.classList.add("opacity-level-1")
-        }
-        toggleOpacityButton.classList.add("opacity-1")
-        toggleOpacityButton.title = "Make Background More Transparent"
-        if (icon) {
-          icon.className = 'fas fa-adjust'
-        }
-        break
-      case 2:
-        // Very transparent
-        if (appContainer) {
-          appContainer.classList.add("opacity-level-2")
-        }
-        if (bodyElement) {
-          bodyElement.classList.add("opacity-level-2")
-        }
-        toggleOpacityButton.classList.add("opacity-2")
-        toggleOpacityButton.title = "Make Background Fully Transparent"
-        if (icon) {
-          icon.className = 'fas fa-low-vision'
-        }
-        break
-      case 3:
-        // Almost transparent
-        if (appContainer) {
-          appContainer.classList.add("opacity-level-3")
-        }
-        if (bodyElement) {
-          bodyElement.classList.add("opacity-level-3")
-        }
-        toggleOpacityButton.classList.add("opacity-3")
-        toggleOpacityButton.title = "Make Background Opaque"
-        if (icon) {
-          icon.className = 'fas fa-eye-slash'
-        }
-        break
-    }
-  }
+  // Save the setting
+  window.electron.ipcRenderer.send("save-opacity-level", opacityLevel)
 }
 
 // Listen for Spotify authentication success
@@ -404,15 +424,13 @@ window.electron.ipcRenderer.on("fetching-lyrics", () => {
 
 // Listen for always on top status updates
 window.electron.ipcRenderer.on("always-on-top-updated", (_event: IpcRendererEvent, isAlwaysOnTop: boolean) => {
-  if (stickTopButton) {
-    if (isAlwaysOnTop) {
-      stickTopButton.classList.add("stuck")
-      stickTopButton.title = "Sticking to Top"
-    } else {
-      stickTopButton.classList.remove("stuck")
-      stickTopButton.title = "Stick to Top"
-    }
-  }
+  isAlwaysOnTopEnabled = isAlwaysOnTop
+  updateAlwaysOnTopButton()
+})
+
+// Listen for settings to load
+window.electron.ipcRenderer.on("load-settings", (_event: IpcRendererEvent, settings: any) => {
+  applySettings(settings)
 })
 
 // Listen for detailed song information

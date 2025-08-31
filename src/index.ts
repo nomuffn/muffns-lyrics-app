@@ -3,6 +3,8 @@ import * as dotenv from "dotenv"
 import { app, BrowserWindow, ipcMain } from "electron"
 import * as http from "http"
 import * as url from "url"
+import * as path from "path"
+import * as fs from "fs"
 import { getLyrics } from "./services/lrclibService"
 import { initiateSpotifyLogin } from "./services/spotifyAuth"
 import { getCurrentlyPlaying, refreshAccessToken } from "./services/spotifyService"
@@ -30,17 +32,63 @@ let currentSongId: string | null = null
 // Lyrics cache
 const lyricsCache: { [key: string]: string | null } = {}
 
+// Settings management
+interface AppSettings {
+  windowPosition?: { x: number; y: number }
+  windowSize?: { width: number; height: number }
+  alwaysOnTop?: boolean
+  opacityLevel?: number
+}
+
+let appSettings: AppSettings = {}
+
+function getSettingsPath(): string {
+  return path.join(app.getPath('userData'), 'settings.json')
+}
+
+function loadSettings(): AppSettings {
+  try {
+    const settingsPath = getSettingsPath()
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf8')
+      return JSON.parse(data)
+    }
+  } catch (error) {
+    console.error('Error loading settings:', error)
+  }
+  return {
+    alwaysOnTop: true, // Default to always on top
+    opacityLevel: 0 // Default to opaque
+  }
+}
+
+function saveSettings(): void {
+  try {
+    const settingsPath = getSettingsPath()
+    fs.writeFileSync(settingsPath, JSON.stringify(appSettings, null, 2))
+  } catch (error) {
+    console.error('Error saving settings:', error)
+  }
+}
+
 if (require("electron-squirrel-startup")) {
   app.quit()
 }
 
 const createWindow = (): void => {
+  // Load settings
+  appSettings = loadSettings()
+  
   mainWindow = new BrowserWindow({
-    height: 600,
-    width: 800,
+    height: appSettings.windowSize?.height || 600,
+    width: appSettings.windowSize?.width || 800,
+    x: appSettings.windowPosition?.x,
+    y: appSettings.windowPosition?.y,
     frame: false, // Remove window frame
     transparent: true, // Enable transparency
     backgroundColor: "#00000000", // Set background to transparent
+    alwaysOnTop: appSettings.alwaysOnTop !== false, // Use saved setting or default to true
+    skipTaskbar: false, // Show in taskbar
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true,
@@ -59,6 +107,30 @@ const createWindow = (): void => {
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools()
   }
+
+  // Save window position and size when changed
+  mainWindow.on('moved', () => {
+    if (mainWindow) {
+      const bounds = mainWindow.getBounds()
+      appSettings.windowPosition = { x: bounds.x, y: bounds.y }
+      saveSettings()
+    }
+  })
+
+  mainWindow.on('resized', () => {
+    if (mainWindow) {
+      const bounds = mainWindow.getBounds()
+      appSettings.windowSize = { width: bounds.width, height: bounds.height }
+      saveSettings()
+    }
+  })
+
+  // Send initial settings to renderer
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('load-settings', appSettings)
+    }
+  })
 }
 
 app.on("ready", createWindow)
@@ -287,7 +359,19 @@ ipcMain.on("request-current-song", async () => {
 ipcMain.on("toggle-always-on-top", () => {
   if (mainWindow) {
     const isAlwaysOnTop = mainWindow.isAlwaysOnTop()
-    mainWindow.setAlwaysOnTop(!isAlwaysOnTop)
-    mainWindow.webContents.send("always-on-top-updated", !isAlwaysOnTop)
+    const newState = !isAlwaysOnTop
+    mainWindow.setAlwaysOnTop(newState)
+    
+    // Save the state
+    appSettings.alwaysOnTop = newState
+    saveSettings()
+    
+    mainWindow.webContents.send("always-on-top-updated", newState)
   }
+})
+
+// IPC handler for saving opacity level
+ipcMain.on("save-opacity-level", (_event, opacityLevel: number) => {
+  appSettings.opacityLevel = opacityLevel
+  saveSettings()
 })
