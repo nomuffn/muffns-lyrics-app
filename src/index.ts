@@ -78,6 +78,12 @@ if (require("electron-squirrel-startup")) {
 }
 
 const createSystemTray = (): void => {
+  // Only create tray if it doesn't exist
+  if (tray) {
+    updateTrayMenu()
+    return
+  }
+
   // Create a simple programmatic icon as fallback
   const trayIcon = nativeImage.createFromBuffer(
     Buffer.from([
@@ -113,6 +119,24 @@ const createSystemTray = (): void => {
 
   tray = new Tray(iconToUse)
   
+  // Handle tray click to show/hide window
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide()
+      } else {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    }
+  })
+
+  tray.setToolTip('Lyrics App - Currently Playing Songs')
+  updateTrayMenu()
+}
+
+const updateTrayMenu = (): void => {
+  if (!tray) return
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Show Window',
@@ -121,6 +145,17 @@ const createSystemTray = (): void => {
         if (mainWindow) {
           mainWindow.show()
           mainWindow.focus()
+        }
+      }
+    },
+    {
+      label: 'Bring to Top',
+      type: 'normal',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show()
+          mainWindow.focus()
+          mainWindow.moveTop()
         }
       }
     },
@@ -178,7 +213,7 @@ const createSystemTray = (): void => {
           saveSettings()
           
           // Update tray menu to reflect new state
-          createSystemTray()
+          updateTrayMenu()
         }
       }
     },
@@ -197,7 +232,7 @@ const createSystemTray = (): void => {
           mainWindow.webContents.send("always-on-top-updated", newState)
           
           // Update tray menu
-          createSystemTray()
+          updateTrayMenu()
         }
       }
     },
@@ -212,19 +247,6 @@ const createSystemTray = (): void => {
   ])
 
   tray.setContextMenu(contextMenu)
-  tray.setToolTip('Lyrics App - Currently Playing Songs')
-  
-  // Handle tray click to show/hide window
-  tray.on('click', () => {
-    if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide()
-      } else {
-        mainWindow.show()
-        mainWindow.focus()
-      }
-    }
-  })
 }
 
 const createWindow = (): void => {
@@ -253,7 +275,7 @@ const createWindow = (): void => {
   mainWindow.setSkipTaskbar(!shouldShowInTaskbar)
   
   // Set always on top with proper level to appear above taskbar
-  // Use 'screen-saver' level which is above taskbar but less aggressive than 'pop-up-menu'
+  // Use 'screen-saver' level which is above taskbar but stable
   if (appSettings.alwaysOnTop !== false) {
     mainWindow.setAlwaysOnTop(true, 'screen-saver')
   }
@@ -537,7 +559,7 @@ ipcMain.on("toggle-always-on-top", () => {
     const newState = !isAlwaysOnTop
     
     // Use 'screen-saver' level to ensure window appears above taskbar on Windows
-    // This level places the window above the taskbar, unlike 'floating' which goes below it
+    // This level places the window above the taskbar
     mainWindow.setAlwaysOnTop(newState, newState ? 'screen-saver' : 'normal')
     
     // Save the state
@@ -552,4 +574,22 @@ ipcMain.on("toggle-always-on-top", () => {
 ipcMain.on("save-opacity-level", (_event, opacityLevel: number) => {
   appSettings.opacityLevel = opacityLevel
   saveSettings()
+  
+  // Enable click-through when fully transparent (level 3), disable otherwise
+  if (mainWindow) {
+    if (opacityLevel === 3) {
+      // Enable click-through but forward mouse events to buttons
+      mainWindow.setIgnoreMouseEvents(true, { forward: true })
+    } else {
+      // Disable click-through for other transparency levels
+      mainWindow.setIgnoreMouseEvents(false)
+    }
+  }
+})
+
+// IPC handler for managing selective mouse events (for button interactions)
+ipcMain.on("set-ignore-mouse-events", (_event, ignore: boolean, options?: { forward?: boolean }) => {
+  if (mainWindow) {
+    mainWindow.setIgnoreMouseEvents(ignore, options)
+  }
 })
