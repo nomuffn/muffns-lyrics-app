@@ -511,13 +511,14 @@ body {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  text-align: center;
-  font-size: clamp(1rem, 0.8rem + 2vh, 2.5rem);
+  text-align: left;
+  font-size: clamp(0.8rem, 0.8rem + 2vh, 2.5rem);
   font-family: monospace;
-  line-height: 2;
+  line-height: 1.8;
   white-space: pre-wrap;
   /* padding: 500px 1rem; */
   padding: 1rem;
+  padding-left: 2rem;
   box-sizing: border-box;
   background-color: #181818;
   border-radius: 8px;
@@ -546,9 +547,10 @@ body {
 .lyrics-line.current {
   opacity: 1;
   color: #ffffff;
-  font-size: clamp(1.2rem, 1rem + 2.5vh, 3rem);
+  font-size: clamp(1rem, 1rem + 2.5vh, 3rem);
   font-weight: bold;
   transform: scale(1.05);
+  transform-origin: left center;
 }
 
 .lyrics-line.future {
