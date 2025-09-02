@@ -106,13 +106,18 @@ const lyricsCache: LyricsCache = {}
 // Function to apply settings from saved state
 function applySettings(settings: any) {
   // Apply opacity level
-  if (typeof settings.opacityLevel === 'number') {
+  if (typeof settings.opacityLevel === "number") {
     opacityLevel = settings.opacityLevel
     applyOpacityLevel()
+
+    // Enable click-through if fully transparent on startup
+    if (opacityLevel === 3) {
+      window.electron.ipcRenderer.send("set-ignore-mouse-events", true, { forward: true })
+    }
   }
 
   // Update always on top button state
-  if (typeof settings.alwaysOnTop === 'boolean') {
+  if (typeof settings.alwaysOnTop === "boolean") {
     isAlwaysOnTopEnabled = settings.alwaysOnTop
     updateAlwaysOnTopButton()
   }
@@ -120,15 +125,15 @@ function applySettings(settings: any) {
 
 // Function to apply current opacity level
 function applyOpacityLevel() {
-  const appContainer = document.querySelector('.app-container')
+  const appContainer = document.querySelector(".app-container")
   const bodyElement = document.body
 
   // Remove all existing opacity classes
   if (appContainer) {
-    appContainer.classList.remove('opacity-level-1', 'opacity-level-2', 'opacity-level-3')
+    appContainer.classList.remove("opacity-level-1", "opacity-level-2", "opacity-level-3")
   }
   if (bodyElement) {
-    bodyElement.classList.remove('opacity-level-1', 'opacity-level-2', 'opacity-level-3')
+    bodyElement.classList.remove("opacity-level-1", "opacity-level-2", "opacity-level-3")
   }
 
   // Apply current opacity level
@@ -138,36 +143,78 @@ function applyOpacityLevel() {
     if (bodyElement) bodyElement.classList.add(className)
   }
 
+  // Setup click-through behavior for level 3 (fully transparent)
+  setupClickThroughBehavior()
+
   // Update button appearance
   updateOpacityButton()
+}
+
+// Track if click-through event listeners are currently attached
+let clickThroughListenersAttached = false
+
+// Function to setup click-through behavior
+function setupClickThroughBehavior() {
+  const actionButtons = document.querySelectorAll(".actions button")
+
+  if (opacityLevel === 3 && !clickThroughListenersAttached) {
+    // Add mouse event listeners to buttons to temporarily disable click-through
+    actionButtons.forEach((button) => {
+      const enterHandler = () => {
+        window.electron.ipcRenderer.send("set-ignore-mouse-events", false)
+      }
+      const leaveHandler = () => {
+        window.electron.ipcRenderer.send("set-ignore-mouse-events", true, { forward: true })
+      }
+      
+      button.addEventListener("mouseenter", enterHandler)
+      button.addEventListener("mouseleave", leaveHandler)
+      
+      // Store handlers for removal later
+      ;(button as any)._clickThroughEnterHandler = enterHandler
+      ;(button as any)._clickThroughLeaveHandler = leaveHandler
+    })
+    clickThroughListenersAttached = true
+  } else if (opacityLevel !== 3 && clickThroughListenersAttached) {
+    // Remove click-through event listeners
+    actionButtons.forEach((button) => {
+      if ((button as any)._clickThroughEnterHandler) {
+        button.removeEventListener("mouseenter", (button as any)._clickThroughEnterHandler)
+        button.removeEventListener("mouseleave", (button as any)._clickThroughLeaveHandler)
+        delete (button as any)._clickThroughEnterHandler
+        delete (button as any)._clickThroughLeaveHandler
+      }
+    })
+    clickThroughListenersAttached = false
+  }
 }
 
 // Function to update opacity button appearance
 function updateOpacityButton() {
   if (toggleOpacityButton) {
-    toggleOpacityButton.classList.remove('opacity-1', 'opacity-2', 'opacity-3')
-    
-    const icon = toggleOpacityButton.querySelector('i')
-    
+    toggleOpacityButton.classList.remove("opacity-1", "opacity-2", "opacity-3")
+
+    const icon = toggleOpacityButton.querySelector("i")
+
     switch (opacityLevel) {
       case 0:
         toggleOpacityButton.title = "Make Background Slightly Transparent"
-        if (icon) icon.className = 'fas fa-eye'
+        if (icon) icon.className = "fas fa-eye"
         break
       case 1:
-        toggleOpacityButton.classList.add('opacity-1')
+        toggleOpacityButton.classList.add("opacity-1")
         toggleOpacityButton.title = "Make Background More Transparent"
-        if (icon) icon.className = 'fas fa-adjust'
+        if (icon) icon.className = "fas fa-adjust"
         break
       case 2:
-        toggleOpacityButton.classList.add('opacity-2')
+        toggleOpacityButton.classList.add("opacity-2")
         toggleOpacityButton.title = "Make Background Fully Transparent"
-        if (icon) icon.className = 'fas fa-low-vision'
+        if (icon) icon.className = "fas fa-low-vision"
         break
       case 3:
-        toggleOpacityButton.classList.add('opacity-3')
+        toggleOpacityButton.classList.add("opacity-3")
         toggleOpacityButton.title = "Make Background Opaque"
-        if (icon) icon.className = 'fas fa-eye-slash'
+        if (icon) icon.className = "fas fa-eye-slash"
         break
     }
   }
@@ -185,6 +232,7 @@ function updateAlwaysOnTopButton() {
     }
   }
 }
+
 
 function initializeApp() {
   const storedTokenExpiry = sessionStorage.getItem("tokenExpiryTime")
@@ -604,10 +652,23 @@ function updateLyricsDisplay() {
 
   lyricsContainer.innerHTML = html
 
-  // Scroll to the current line
+  // Scroll to the current line (vertical only)
   const currentLineElement = lyricsContainer.querySelector(".lyrics-line.current")
   if (currentLineElement) {
-    currentLineElement.scrollIntoView({ behavior: "smooth", block: "center" })
+    // Calculate the position manually to avoid horizontal scrolling interference
+    const containerRect = lyricsContainer.getBoundingClientRect()
+    const elementRect = currentLineElement.getBoundingClientRect()
+    
+    // Only scroll vertically to center the element
+    const containerCenter = containerRect.height / 2
+    const elementCenter = elementRect.top - containerRect.top + elementRect.height / 2
+    const scrollOffset = elementCenter - containerCenter
+    
+    lyricsContainer.scrollTo({
+      top: lyricsContainer.scrollTop + scrollOffset,
+      left: lyricsContainer.scrollLeft, // Keep current horizontal position
+      behavior: "smooth"
+    })
   }
 }
 
